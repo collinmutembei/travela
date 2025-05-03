@@ -10,8 +10,7 @@ from models import AuthUser
 
 # Initialize Africa's Talking SDK
 africastalking.initialize(
-    username=settings.africastalking_username,
-    api_key=settings.africastalking_api_key
+    username=settings.africastalking_username, api_key=settings.africastalking_api_key
 )
 sms = africastalking.SMS
 
@@ -30,6 +29,7 @@ class OTPDeliveryException(Exception):
     """
     Custom exception for OTP delivery failures.
     """
+
     def __init__(self, message: str):
         self.message = message
         super().__init__(self.message)
@@ -39,11 +39,11 @@ def request_otp(phone: str) -> dict[str, str]:
     """
     Generate and send an OTP to the given phone number via SMS.
     """
+    save_user(phone)
     otp = str(random.randint(100000, 999999))
     otp_cache[phone] = otp
     if settings.app_env == "development":
-        print(f"OTP for {phone}: {otp}")
-        return {"message": "OTP sent in development mode"}
+        return {"message": f"OTP sent in development mode {otp}"}
     else:
         try:
             response = sms.send(f"Your Travela OTP: {otp}", [phone])
@@ -52,7 +52,6 @@ def request_otp(phone: str) -> dict[str, str]:
                 raise OTPDeliveryException(f"Failed to send OTP: {status}")
         except africastalking.Service.AfricasTalkingException as e:
             raise OTPDeliveryException(f"Failed to send OTP: {str(e)}")
-    save_user(phone)
     return {"message": "OTP sent"}
 
 
@@ -77,7 +76,9 @@ def create_access_token(data: dict) -> str:
     Create a JWT token with the given data.
     """
     to_encode = data.copy()
-    expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+    )
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
