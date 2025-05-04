@@ -152,7 +152,8 @@ export default function AuthPage() {
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="bg-secondary/50"
-                              </div>
+                />
+              </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "Sending..." : "Send OTP"}
               </Button>
