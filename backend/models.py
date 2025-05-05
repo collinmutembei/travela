@@ -41,6 +41,7 @@ class Conversation(JsonModel):
     Redis OM model for storing chat conversations.
     """
 
+    user_phone: str = Field(index=True)
     title: str = Field(default="New Chat")
     messages: list[Chat] = []
     updated_at: str = Field(default=datetime.now(timezone.utc).isoformat())
@@ -74,7 +75,7 @@ class ChatResponse(BaseModel):
 
 class ConversationResponse(BaseModel):
     """Schema for returning Conversation"""
-
+    id: Optional[str] = ""
     title: str
     updated_at: str
     messages: list[ChatResponse]

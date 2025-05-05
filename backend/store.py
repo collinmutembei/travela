@@ -39,7 +39,7 @@ def save_chat(phone: str, q: str, a: str, conversation_id: str) -> Chat:
         except NotFoundError:
             raise ValueError(f"Conversation with ID {conversation_id} not found.")
     else:
-        conversation = Conversation()
+        conversation = Conversation(user_phone=phone)
         conversation_id = conversation.pk
         conversation.title = f"Chat {conversation_id}"
     chat = Chat(user_phone=phone, conversation_id=conversation_id, question=q, answer=a)
@@ -47,6 +47,17 @@ def save_chat(phone: str, q: str, a: str, conversation_id: str) -> Chat:
     conversation.messages.append(chat)
     conversation.save()
     return chat
+
+
+def get_conversations(phone: str) -> list[Conversation]:
+    """
+    Retrieve all chat conversations for a user.
+    """
+    try:
+        conversations = Conversation.find(Conversation.user_phone == phone).all()
+    except NotFoundError:
+        raise ValueError(f"No conversations found for user {phone}.")
+    return conversations
 
 
 def get_conversation(conversation_id: str) -> list[Chat]:

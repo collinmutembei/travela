@@ -5,3 +5,4 @@ africastalking
 redis-om
 google-adk
 python-jose
+pytest

@@ -12,7 +12,7 @@ from auth import (
     get_current_user,
 )
 from ai.agent import get_agent_response
-from store import save_chat, get_conversation, update_conversation
+from store import save_chat, get_conversation, update_conversation, get_conversations
 from models import (
     OTPRequest,
     QueryRequest,
@@ -113,6 +113,37 @@ def ask_question(body: QueryRequest, user: str = Depends(get_current_user)):
 
 
 @app.get(
+    "/chats",
+    summary="Get All Chats",
+    response_model=list[ConversationResponse],
+    description="Retrieve all chat conversations for the authenticated user.",
+    tags=["Chats"],
+)
+def all_chats(user: str = Depends(get_current_user)):
+    """
+    Protected endpoint to fetch all chat conversations for the user.
+    """
+    conversations = get_conversations(user.phone)
+    return [
+        ConversationResponse(
+            id=conversation.pk,
+            title=conversation.title,
+            updated_at=conversation.updated_at,
+            messages=[
+                ChatResponse(
+                    question=chat.question,
+                    answer=chat.answer,
+                    timestamp=chat.timestamp,
+                    conversation_id=conversation.pk,
+                )
+                for chat in conversation.messages
+            ],
+        )
+        for conversation in conversations
+    ]
+
+
+@app.get(
     "/chats/{conversation_id}",
     summary="Get Chats",
     response_model=ConversationResponse,
@@ -125,6 +156,7 @@ def chat_history(conversation_id: str, user: str = Depends(get_current_user)):
     """
     conversation = get_conversation(conversation_id)
     return ConversationResponse(
+        id=conversation.pk,
         title=conversation.title,
         updated_at=conversation.updated_at,
         messages=[
@@ -155,4 +187,17 @@ def update_chat(
     Protected endpoint to update a specific chat conversation.
     """
     updated_chat = update_conversation(conversation_id, body.title)
-    return updated_chat
+    return ConversationResponse(
+        id=updated_chat.pk,
+        title=updated_chat.title,
+        updated_at=updated_chat.updated_at,
+        messages=[
+            ChatResponse(
+                question=chat.question,
+                answer=chat.answer,
+                timestamp=chat.timestamp,
+                conversation_id=conversation_id,
+            )
+            for chat in updated_chat.messages
+        ],
+    )
