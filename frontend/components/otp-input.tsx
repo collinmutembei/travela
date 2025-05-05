@@ -1,14 +1,10 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
-import { Input } from "@/components/ui/input"
 
-interface OtpInputProps {
-  value: string
-  onChange: (value: string) => void
-  numInputs: number
-}
+import { useRef, useEffect, useState } from "react"
+import { Input } from "@/components/ui/input"
+import type { OtpInputProps } from "@/types"
 
 export function OtpInput({ value, onChange, numInputs }: OtpInputProps) {
   const [activeInput, setActiveInput] = useState(0)
@@ -105,6 +101,7 @@ export function OtpInput({ value, onChange, numInputs }: OtpInputProps) {
           onFocus={() => handleFocus(index)}
           onPaste={handlePaste}
           className="w-12 h-12 text-center text-lg font-semibold bg-secondary/50"
+          aria-label={`Digit ${index + 1} of verification code`}
         />
       ))}
     </div>

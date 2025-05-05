@@ -1,3 +1,5 @@
+import type { ApiError } from "@/types"
+
 /**
  * API utilities for making requests to the backend
  */
@@ -17,25 +19,71 @@ export function getApiUrl(path: string): string {
 }
 
 /**
+ * Get the authentication token from localStorage
+ * @returns The authentication token or null if not found
+ */
+export function getAuthToken(): string | null {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("token")
+  }
+  return null
+}
+
+/**
+ * Create headers with authentication token
+ * @param additionalHeaders - Additional headers to include
+ * @returns Headers object with authentication token
+ */
+export function createAuthHeaders(additionalHeaders: Record<string, string> = {}): HeadersInit {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...additionalHeaders,
+  }
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`
+  }
+
+  return headers
+}
+
+/**
  * Basic fetch wrapper with error handling for JSON requests
  */
 export async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const url = getApiUrl(path)
+  const headers = createAuthHeaders((options?.headers as Record<string, string>) || {})
 
   try {
     const response = await fetch(url, {
       ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-      },
+      headers,
     })
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`)
+    if (response.status === 401) {
+      // Handle unauthorized access - redirect to login
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("token")
+        window.location.href = "/auth"
+      }
+      throw new Error("Unauthorized access")
     }
 
-    return await response.json()
+    // Parse the response
+    const data = await response.json()
+
+    if (!response.ok) {
+      const error: ApiError = {
+        message: data.message || "An error occurred",
+        code: data.code || "UNKNOWN_ERROR",
+        status: response.status,
+        details: data.details,
+      }
+      throw error
+    }
+
+    return data as T
   } catch (error) {
     console.error("API request failed:", error)
     throw error
@@ -58,22 +106,49 @@ export async function fetchFormApi<T>(
     urlSearchParams.append(key, value)
   })
 
+  // Get authentication token
+  const token = getAuthToken()
+  const headers: Record<string, string> = {
+    "Content-Type": "application/x-www-form-urlencoded",
+    ...((options?.headers as Record<string, string>) || {}),
+  }
+
+  // Add token to headers if available
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`
+  }
+
   try {
     const response = await fetch(url, {
       ...options,
       method: options?.method || "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        ...options?.headers,
-      },
+      headers,
       body: urlSearchParams.toString(),
     })
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`)
+    // Parse the response
+    const data = await response.json()
+
+    if (response.status === 401) {
+      // Handle unauthorized access - redirect to login
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("token")
+        window.location.href = "/auth"
+      }
+      throw new Error("Unauthorized access")
     }
 
-    return await response.json()
+    if (!response.ok) {
+      const error: ApiError = {
+        message: data.message || "An error occurred",
+        code: data.code || "UNKNOWN_ERROR",
+        status: response.status,
+        details: data.details,
+      }
+      throw error
+    }
+
+    return data as T
   } catch (error) {
     console.error("API request failed:", error)
     throw error

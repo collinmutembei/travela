@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,7 @@ import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import { getApiUrl, fetchFormApi } from "@/lib/api"
 import { isValidKenyanPhone, formatPhoneNumber } from "@/lib/phone-utils"
+import type { AuthResponse, OtpRequest, OtpVerification } from "@/types"
 
 export default function AuthPage() {
   const router = useRouter()
@@ -52,12 +54,14 @@ export default function AuthPage() {
     setFormattedPhone(formattedNumber)
 
     try {
+      const requestData: OtpRequest = { phone: formattedNumber }
+
       const response = await fetch(getApiUrl("auth/request-otp"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ phone: formattedNumber }),
+        body: JSON.stringify(requestData),
       })
 
       if (!response.ok) {
@@ -92,14 +96,14 @@ export default function AuthPage() {
 
     setIsLoading(true)
     try {
-      const formData = {
+      const formData: OtpVerification = {
         grant_type: "password",
         username: formattedPhone,
         password: otp,
       }
 
-      const data = await fetchFormApi("auth/verify-otp", formData)
-      localStorage.setItem("token", data.access_token || data.token)
+      const data = await fetchFormApi<AuthResponse>("auth/verify-otp", formData)
+      localStorage.setItem("token", data.access_token || data.token_type)
 
       toast({
         title: "Success",
@@ -152,6 +156,7 @@ export default function AuthPage() {
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="bg-secondary/50"
+                  aria-label="Phone Number"
                 />
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>

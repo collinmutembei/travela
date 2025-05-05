@@ -99,4 +99,4 @@ class UpdateConversationRequest(BaseModel):
     """Schema for updating a conversation."""
 
     title: str
-    messages: list[Chat]
+    messages: Optional[list[Chat]] = []

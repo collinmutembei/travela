@@ -20,45 +20,45 @@ A modern chat application with OTP authentication built with Next.js, TypeScript
 
 1. Copy the example environment file:
 
-```bash
+\`\`\`bash
 cp .env.local.example .env.local
-```
+\`\`\`
 
 2. Edit `.env.local` to configure your environment variables:
 
-```
+\`\`\`
 NEXT_PUBLIC_API_URL=http://localhost:8000
-```
+\`\`\`
 
 Change this to match your API server URL.
 
 ### Installation
 
-```bash
+\`\`\`bash
 npm install
 # or
 yarn install
-```
+\`\`\`
 
 ### Development
 
-```bash
+\`\`\`bash
 npm run dev
 # or
 yarn dev
-```
+\`\`\`
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### Build for Production
 
-```bash
+\`\`\`bash
 npm run build
 npm start
 # or
 yarn build
 yarn start
-```
+\`\`\`
 
 ## Project Structure
 

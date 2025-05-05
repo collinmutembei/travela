@@ -15,23 +15,16 @@ import {
 } from "@/components/ui/sidebar"
 import { MessageSquarePlus, LogOut } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
+import type { ChatSidebarProps } from "@/types"
 
-interface Chat {
-  id: string
-  title: string
-  lastMessage: string
-  timestamp: string
-}
-
-interface ChatSidebarProps {
-  chats: Chat[]
-  selectedChat: string | null
-  onSelectChat: (chatId: string) => void
-  onNewChat: () => void
-  onLogout: () => void
-}
-
-export function ChatSidebar({ chats, selectedChat, onSelectChat, onNewChat, onLogout }: ChatSidebarProps) {
+export function ChatSidebar({
+  chats,
+  selectedChat,
+  onSelectChat,
+  onNewChat,
+  onLogout,
+  isLoading = false,
+}: ChatSidebarProps) {
   // The useSidebar hook is now safely used within a SidebarProvider
   const { isMobile } = useSidebar()
 
@@ -49,23 +42,32 @@ export function ChatSidebar({ chats, selectedChat, onSelectChat, onNewChat, onLo
 
         <SidebarContent>
           <ScrollArea className="h-[calc(100vh-8rem)]">
-            <SidebarMenu>
-              {chats.map((chat) => (
-                <SidebarMenuItem key={chat.id}>
-                  <SidebarMenuButton
-                    isActive={chat.id === selectedChat}
-                    onClick={() => onSelectChat(chat.id)}
-                    className="flex flex-col items-start p-3 h-auto"
-                  >
-                    <div className="flex justify-between w-full">
-                      <span className="font-medium">{chat.title}</span>
-                      <span className="text-xs text-muted-foreground">{format(new Date(chat.timestamp), "MMM d")}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground truncate w-full mt-1">{chat.lastMessage}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
+            {isLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-pulse text-muted-foreground">Loading chats...</div>
+              </div>
+            ) : (
+              <SidebarMenu>
+                {chats.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No conversations yet</div>
+                ) : (
+                  chats.map((chat) => (
+                    <SidebarMenuItem key={chat.id}>
+                      <SidebarMenuButton
+                        isActive={chat.id === selectedChat}
+                        onClick={() => onSelectChat(chat.id)}
+                        className="flex flex-col items-start p-3 h-auto"
+                      >
+                        <div className="flex justify-between w-full">
+                          <span className="font-medium">{chat.title}</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground truncate w-full mt-1">{chat.lastMessage}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))
+                )}
+              </SidebarMenu>
+            )}
           </ScrollArea>
         </SidebarContent>
 

@@ -5,17 +5,14 @@ import { useRouter } from "next/navigation"
 import { ChatSidebar } from "@/components/chat-sidebar"
 import { ChatArea } from "@/components/chat-area"
 import { SidebarProvider } from "@/components/ui/sidebar"
-
-interface Chat {
-  id: string
-  title: string
-  lastMessage: string
-  timestamp: string
-}
+import { Toaster } from "@/components/ui/toaster"
+import { toast } from "@/components/ui/use-toast"
+import { getConversations } from "@/lib/chat-service"
+import type { Conversation } from "@/types"
 
 export default function ChatPage() {
   const router = useRouter()
-  const [chats, setChats] = useState<Chat[]>([])
+  const [chats, setChats] = useState<Conversation[]>([])
   const [selectedChat, setSelectedChat] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -27,43 +24,35 @@ export default function ChatPage() {
       return
     }
 
-    // Mock data for chats
-    const mockChats: Chat[] = [
-      {
-        id: "1",
-        title: "Project Discussion",
-        lastMessage: "Let's schedule a meeting tomorrow",
-        timestamp: "2025-05-02T14:30:00Z",
-      },
-      {
-        id: "2",
-        title: "Team Updates",
-        lastMessage: "The new feature is ready for testing",
-        timestamp: "2025-05-02T10:15:00Z",
-      },
-      {
-        id: "3",
-        title: "Support Chat",
-        lastMessage: "Thank you for your help!",
-        timestamp: "2025-05-01T18:45:00Z",
-      },
-    ]
-
-    setChats(mockChats)
-    setSelectedChat(mockChats[0].id)
-    setIsLoading(false)
+    // Fetch conversations
+    fetchConversations()
   }, [router])
 
-  const handleNewChat = () => {
-    const newChat: Chat = {
-      id: `new-${Date.now()}`,
-      title: "New Conversation",
-      lastMessage: "Start typing to begin the conversation",
-      timestamp: new Date().toISOString(),
-    }
+  const fetchConversations = async () => {
+    setIsLoading(true)
+    try {
+      const conversations = await getConversations()
+      setChats(conversations)
 
-    setChats([newChat, ...chats])
-    setSelectedChat(newChat.id)
+      // Select the first conversation if available
+      if (conversations.length > 0 && !selectedChat) {
+        setSelectedChat(conversations[0].id)
+      }
+    } catch (error) {
+      console.error("Failed to fetch conversations:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load conversations. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleNewChat = () => {
+    const newChatId = `New Chat`
+    setSelectedChat(newChatId)
   }
 
   const handleSelectChat = (chatId: string) => {
@@ -75,17 +64,9 @@ export default function ChatPage() {
     router.push("/auth")
   }
 
-  // Show loading state while checking authentication
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-pulse text-lg">Loading...</div>
-      </div>
-    )
-  }
-
   return (
     <SidebarProvider>
+      <Toaster />
       <div className="flex h-screen w-full overflow-hidden bg-background">
         <ChatSidebar
           chats={chats}
@@ -93,6 +74,7 @@ export default function ChatPage() {
           onSelectChat={handleSelectChat}
           onNewChat={handleNewChat}
           onLogout={handleLogout}
+          isLoading={isLoading}
         />
         <div className="flex-1 h-full overflow-hidden">
           <ChatArea chatId={selectedChat} />
