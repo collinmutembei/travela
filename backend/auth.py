@@ -1,5 +1,6 @@
 import random
 import datetime
+import redis
 from jose import JWTError, jwt
 import africastalking
 from fastapi import HTTPException, Depends
@@ -14,34 +15,43 @@ africastalking.initialize(
 )
 sms = africastalking.SMS
 
+# Redis for OTP
+redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+
 # JWT Configuration
 SECRET_KEY = settings.jwt_secret_key  # Use a secure key from settings
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ALGORITHM = settings.jwt_algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.jwt_access_token_expire_minutes
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/verify-otp")
-
-# In-memory OTP cache (for demonstration)
-otp_cache: dict[str, str] = {}
-
 
 class OTPDeliveryException(Exception):
     """
     Custom exception for OTP delivery failures.
     """
-
     def __init__(self, message: str):
         self.message = message
         super().__init__(self.message)
 
+def _otp_redis_key(phone: str) -> str:
+    return f"otp:{phone}"
 
 def request_otp(phone: str) -> dict[str, str]:
     """
     Generate and send an OTP to the given phone number via SMS.
+    Uses Redis for OTP storage (expiry and brute-force protection).
     """
     save_user(phone)
     otp = str(random.randint(100000, 999999))
-    otp_cache[phone] = otp
+    otp_key = _otp_redis_key(phone)
+    # Limit attempts
+    attempts_key = f"{otp_key}:attempts"
+    attempts = int(redis_client.get(attempts_key) or 0)
+    if attempts >= settings.otp_max_attempts:
+        raise OTPDeliveryException("Maximum OTP requests exceeded. Try again later.")
+    redis_client.setex(otp_key, settings.otp_expiry_seconds, otp)
+    redis_client.incr(attempts_key)
+    redis_client.expire(attempts_key, settings.otp_expiry_seconds)
     if settings.app_env == "development":
         return {"message": f"OTP sent in development mode {otp}"}
     else:
@@ -54,22 +64,22 @@ def request_otp(phone: str) -> dict[str, str]:
             raise OTPDeliveryException(f"Failed to send OTP: {str(e)}")
     return {"message": "OTP sent"}
 
-
-def verify_otp(phone: str, otp: str) -> str:
+def verify_otp(phone: str, otp: str) -> tuple[str, str]:
     """
     Verify the provided OTP for the phone number.
-    Returns the phone if successful, else raises HTTPException.
+    Returns the phone and session_id if successful, else raises HTTPException.
     """
-    if otp_cache.get(phone) == otp:
+    otp_key = _otp_redis_key(phone)
+    cached_otp = redis_client.get(otp_key)
+    if cached_otp and cached_otp == otp:
         try:
             user = update_user_auth(phone)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
-        # OTP verified, remove it from cache
-        # del otp_cache[phone]
+        redis_client.delete(otp_key)  # Always remove OTP after use
+        redis_client.delete(f"{otp_key}:attempts")
         return user.phone, user.session_id
     raise HTTPException(status_code=401, detail="Invalid OTP")
-
 
 def create_access_token(data: dict) -> str:
     """
@@ -82,8 +92,7 @@ def create_access_token(data: dict) -> str:
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-
-def get_current_user(token: str = Depends(oauth2_scheme)) -> dict[str, str]:
+def get_current_user(token: str = Depends(oauth2_scheme)) -> AuthUser:
     """
     Decode and verify the JWT token to get the current user.
     """

@@ -1,9 +1,7 @@
 from typing import Annotated
-
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
-
 from auth import (
     request_otp,
     verify_otp,
@@ -20,9 +18,15 @@ from models import (
     AuthResponse,
     ConversationResponse,
     UpdateConversationRequest,
+    AuthUser,
 )
 from redis_om import Migrator
+from config import settings
 
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("travela")
 
 # Define the lifespan context manager
 def app_lifespan(app: FastAPI):
@@ -33,7 +37,6 @@ def app_lifespan(app: FastAPI):
     Migrator().run()
     yield
 
-
 # Initialize FastAPI application
 app = FastAPI(
     title="Travela API",
@@ -42,15 +45,13 @@ app = FastAPI(
     lifespan=app_lifespan,
 )
 
-
-# Allow cross-origin requests from frontend
+# Allow cross-origin requests from frontend (restrict in production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_allow_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @app.post(
     "/auth/request-otp",
@@ -65,8 +66,11 @@ def send_otp(body: OTPRequest):
     try:
         return request_otp(body.phone)
     except OTPDeliveryException as e:
-        raise HTTPException(status_code=500, detail=e.message)
-
+        logger.error(f"OTP delivery failed: {e.message}")
+        raise HTTPException(status_code=500, detail="Failed to send OTP")
+    except Exception as e:
+        logger.exception("Unexpected error in OTP request")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post(
     "/auth/verify-otp",
@@ -85,7 +89,6 @@ def auth_verify(body: Annotated[OAuth2PasswordRequestForm, Depends()]):
     )
     return AuthResponse(access_token=access_token, token_type="bearer")
 
-
 @app.post(
     "/ask",
     summary="Ask AI",
@@ -93,7 +96,7 @@ def auth_verify(body: Annotated[OAuth2PasswordRequestForm, Depends()]):
     description="Submit a question to the AI agent and receive a response.",
     tags=["AI"],
 )
-def ask_question(body: QueryRequest, user: str = Depends(get_current_user)):
+def ask_question(body: QueryRequest, user: AuthUser = Depends(get_current_user)):
     """
     Protected endpoint to ask the AI travel assistant a question.
     Saves the Q&A to Redis.
@@ -111,7 +114,6 @@ def ask_question(body: QueryRequest, user: str = Depends(get_current_user)):
         conversation_id=chat.conversation_id,
     )
 
-
 @app.get(
     "/chats",
     summary="Get All Chats",
@@ -119,7 +121,7 @@ def ask_question(body: QueryRequest, user: str = Depends(get_current_user)):
     description="Retrieve all chat conversations for the authenticated user.",
     tags=["Chats"],
 )
-def all_chats(user: str = Depends(get_current_user)):
+def all_chats(user: AuthUser = Depends(get_current_user)):
     """
     Protected endpoint to fetch all chat conversations for the user.
     """
@@ -142,7 +144,6 @@ def all_chats(user: str = Depends(get_current_user)):
         for conversation in conversations
     ]
 
-
 @app.get(
     "/chats/{conversation_id}",
     summary="Get Chats",
@@ -150,7 +151,7 @@ def all_chats(user: str = Depends(get_current_user)):
     description="Retrieve authenticated user's chat history.",
     tags=["Chats"],
 )
-def chat_history(conversation_id: str, user: str = Depends(get_current_user)):
+def chat_history(conversation_id: str, user: AuthUser = Depends(get_current_user)):
     """
     Protected endpoint to fetch the user's chat history.
     """
@@ -170,7 +171,6 @@ def chat_history(conversation_id: str, user: str = Depends(get_current_user)):
         ],
     )
 
-
 @app.put(
     "/chats/{conversation_id}",
     summary="Update Chat",
@@ -181,7 +181,7 @@ def chat_history(conversation_id: str, user: str = Depends(get_current_user)):
 def update_chat(
     conversation_id: str,
     body: UpdateConversationRequest,
-    user: str = Depends(get_current_user),
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Protected endpoint to update a specific chat conversation.
